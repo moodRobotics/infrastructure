@@ -17,7 +17,8 @@ infrastructure/
 │   │   └── hereda-apps/   # Stacks de gestión
 │   └── quimera/           # Cluster Swarm (mood001, mood003, mood999) - Mood Robotics
 │       ├── core-services/ # Apps Node.js (1-tool.com, paypirus.com, cvic.uk)
-│       └── databases/     # Instancias MongoDB
+│       ├── databases/     # Instancias MongoDB
+│       └── dsh/           # DeepSeek Harness (ghcr.io/moodrobotics/dsh:release)
 ├── standalone/
 │   ├── dragon/            # Servidor mood100 (HP DL580 Gen9 + RTX 5060 Ti)
 │   │   └── gpu-workloads/ # Stacks con runtime nvidia para IA/Inferencia

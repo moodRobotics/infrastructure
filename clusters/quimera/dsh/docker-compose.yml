@@ -1,0 +1,50 @@
+version: '3.8'
+
+# Stack: dsh (DeepSeek Harness)
+# Cluster: Quimera (Docker Swarm - mood001, mood003, mood999)
+# Ingress: Nginx Proxy Web / Cloudflare / DonDominio (moodrobotics.com)
+
+services:
+  dsh:
+    image: ghcr.io/moodrobotics/dsh:release
+    environment:
+      - NODE_ENV=production
+      - DSH_HOST=0.0.0.0
+      - DSH_PORT=3080
+      - DSH_HOME=/data/.dsh
+      - DSH_WORKSPACE=/data/workspace
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - DEEPSEEK_API_BASE=${DEEPSEEK_API_BASE:-https://api.deepseek.com}
+      # Configuración de Ingress para Nginx Proxy Web hacia Cloudflare / DonDominio
+      - VIRTUAL_HOST=dsh.moodrobotics.com
+      - VIRTUAL_PORT=3080
+    networks:
+      - quimera-ingress
+    volumes:
+      - dsh-storage:/data
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == worker
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      restart_policy:
+        condition: on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3080 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 25s
+
+networks:
+  quimera-ingress:
+    external: true
+
+volumes:
+  dsh-storage:
+    name: dsh-storage
