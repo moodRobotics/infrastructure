@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  hereda-gestion:
+    image: ${REGISTRY_URL:-registry.moodrobotics.com}/hereda/gestion-app:${HEREDA_GESTION_TAG:-latest}
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      MONGO_URI: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-change_me_production_password}@mongodb:27017/hereda_gestion?authSource=admin
+      VIRTUAL_HOST: gestion.grupohereda.com
+      LETSENCRYPT_HOST: gestion.grupohereda.com
+      LETSENCRYPT_EMAIL: admin@grupohereda.com
+    networks:
+      - maria-net
+      - maria-backend
+    deploy:
+      mode: replicated
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+
+  hereda-api:
+    image: ${REGISTRY_URL:-registry.moodrobotics.com}/hereda/api-service:${HEREDA_API_TAG:-latest}
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      MONGO_URI: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-change_me_production_password}@mongodb:27017/hereda_api?authSource=admin
+      VIRTUAL_HOST: api.grupohereda.com
+      LETSENCRYPT_HOST: api.grupohereda.com
+      LETSENCRYPT_EMAIL: admin@grupohereda.com
+    networks:
+      - maria-net
+      - maria-backend
+    deploy:
+      mode: replicated
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+
+networks:
+  maria-net:
+    external: true
+  maria-backend:
+    external: true

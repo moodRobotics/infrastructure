@@ -1,0 +1,30 @@
+version: '3.8'
+
+# Nodo: smith (Raspberry Pi 3B+ - 192.168.40.31)
+# Propósito: Proxy saliente Squid / Privoxy con salida dedicada a través de módem USB 4G Orange
+
+services:
+  squid-4g:
+    image: ubuntu/squid:5.2-22.04_beta
+    container_name: smith-squid-4g
+    restart: unless-stopped
+    network_mode: "host" # Permite enlazar directamente a la IP/interfaz del pincho 4G (ej. ppp0 / wwan0)
+    volumes:
+      - ./squid.conf:/etc/squid/squid.conf:ro
+      - squid_logs:/var/log/squid
+    environment:
+      - TZ=Europe/Madrid
+
+  privoxy-4g:
+    image: vimagick/privoxy:latest
+    container_name: smith-privoxy-4g
+    restart: unless-stopped
+    ports:
+      - "8118:8118"
+    volumes:
+      - ./privoxy.conf:/etc/privoxy/config:ro
+    depends_on:
+      - squid-4g
+
+volumes:
+  squid_logs:

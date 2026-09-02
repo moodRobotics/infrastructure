@@ -1,0 +1,24 @@
+version: '3.8'
+
+# Cloudflare Tunnel (cloudflared)
+# Proporciona túnel seguro entre los clusters/nodos internos y la red global de Cloudflare
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: mood-cloudflared-tunnel
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    # Alternativa basada en archivo de configuración local:
+    # command: tunnel --config /etc/cloudflared/config.yml run
+    # volumes:
+    #   - ./config.yml:/etc/cloudflared/config.yml:ro
+    #   - ./cert.pem:/etc/cloudflared/cert.pem:ro
+    networks:
+      - cloudflare-net
+
+networks:
+  cloudflare-net:
+    driver: bridge

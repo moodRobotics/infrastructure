@@ -1,0 +1,25 @@
+# Secrets and environment variables
+.env
+*.env
+*.local.env
+!*.example.env
+!*.env.example
+
+# Sensitive files and keys
+*.pem
+*.key
+*.crt
+*.cert
+*.pfx
+secrets/
+
+# Portainer and runtime state
+*.log
+*.pid
+.DS_Store
+Thumbs.db
+
+# Backups and temporary files
+*.bak
+*.tmp
+*.swp

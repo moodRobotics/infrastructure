@@ -1,0 +1,46 @@
+version: '3.8'
+
+# Nodo: MiniPC Mercedes (Asus)
+# IP Nodo: 10.90.0.21
+# Enrutamiento: Red 10.90.0.0/24 comunicada con la oficina (192.168.40.0/24) via gateway Mikrotik 192.168.40.1
+
+services:
+  restic-backup:
+    image: mazzolino/restic:latest
+    container_name: shadow-restic-backup
+    restart: unless-stopped
+    environment:
+      - RESTIC_REPOSITORY=/mnt/backups/shadow
+      - RESTIC_PASSWORD=${RESTIC_PASSWORD:-change_me_secret_password}
+      - BACKUP_CRON=0 3 * * *
+      - RESTIC_TAG=shadow-mercedes
+      # Destino remoto oficina via túnel Mikrotik
+      - REMOTE_SYNC_HOST=192.168.40.1
+    volumes:
+      - /var/data/services:/data:ro
+      - /mnt/backups:/mnt/backups
+
+  syncthing:
+    image: syncthing/syncthing:latest
+    container_name: shadow-syncthing
+    restart: unless-stopped
+    ports:
+      - "8384:8384"
+      - "22000:22000/tcp"
+      - "22000:22000/udp"
+    environment:
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - /opt/syncthing/config:/var/syncthing/config
+      - /data/sync:/var/syncthing/data
+
+  portainer-agent:
+    image: portainer/agent:2.19.5
+    container_name: shadow-portainer-agent
+    restart: always
+    ports:
+      - "9001:9001"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker/volumes:/var/lib/docker/volumes

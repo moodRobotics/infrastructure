@@ -1,0 +1,66 @@
+version: '3.8'
+
+# Servidor: mood100 (HP ProLiant DL580 Gen9)
+# Hardware: NVIDIA GeForce RTX 5060 Ti
+# Drivers: 595.71.05 / CUDA 13.2 / NVIDIA Container Toolkit
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: dragon-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - /opt/ollama/models:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_KEEP_ALIVE=24h
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  vllm-inference:
+    image: vllm/vllm-openai:latest
+    container_name: dragon-vllm
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - /opt/huggingface/hub:/root/.cache/huggingface
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN:-}
+      - MODEL_NAME=${VLLM_MODEL:-meta-llama/Llama-3-8B-Instruct}
+    command: >
+      --model ${VLLM_MODEL:-meta-llama/Llama-3-8B-Instruct}
+      --port 8000
+      --gpu-memory-utilization 0.90
+      --max-model-len 8192
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: dragon-webui
+    restart: unless-stopped
+    ports:
+      - "3080:8080"
+    volumes:
+      - /opt/open-webui/data:/app/backend/data
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OPENAI_API_BASE_URL=http://vllm-inference:8000/v1
+      - OPENAI_API_KEY=dummy-key
+    depends_on:
+      - ollama

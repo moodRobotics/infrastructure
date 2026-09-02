@@ -1,0 +1,29 @@
+# Cloudflare Tunnel Configuration Example
+tunnel: <TUNNEL_UUID>
+credentials-file: /etc/cloudflared/<TUNNEL_UUID>.json
+
+ingress:
+  # 1-tool.com
+  - hostname: 1-tool.com
+    service: http://quimera-proxy:80
+  - hostname: "*.1-tool.com"
+    service: http://quimera-proxy:80
+
+  # paypirus.com
+  - hostname: paypirus.com
+    service: http://quimera-proxy:80
+
+  # cvic.uk
+  - hostname: cvic.uk
+    service: http://quimera-proxy:80
+
+  # Grupo Hereda gestión (acceso restringido via Cloudflare Zero Trust)
+  - hostname: gestion.grupohereda.com
+    service: http://maria-proxy:80
+
+  # Dragon WebUI
+  - hostname: ai.moodrobotics.internal
+    service: http://192.168.40.100:3080
+
+  # Catch-all rule (requerido por Cloudflare)
+  - service: http_status:404

@@ -1,0 +1,112 @@
+version: '3.8'
+
+services:
+  one-tool:
+    image: ${REGISTRY_URL:-registry.moodrobotics.com}/mood/1-tool:${ONE_TOOL_TAG:-latest}
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      VIRTUAL_HOST: 1-tool.com,www.1-tool.com
+      VIRTUAL_PORT: 3000
+      MONGO_URI: mongodb://mongodb:27017/1tool?authSource=admin
+    networks:
+      - quimera-ingress
+      - quimera-db
+    deploy:
+      mode: replicated
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  paypirus:
+    image: ${REGISTRY_URL:-registry.moodrobotics.com}/mood/paypirus:${PAYPIRUS_TAG:-latest}
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      VIRTUAL_HOST: paypirus.com,www.paypirus.com
+      VIRTUAL_PORT: 3001
+      MONGO_URI: mongodb://mongodb:27017/paypirus?authSource=admin
+    networks:
+      - quimera-ingress
+      - quimera-db
+    deploy:
+      mode: replicated
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+
+  cvic:
+    image: ${REGISTRY_URL:-registry.moodrobotics.com}/mood/cvic:${CVIC_TAG:-latest}
+    environment:
+      NODE_ENV: production
+      PORT: 3002
+      VIRTUAL_HOST: cvic.uk,www.cvic.uk
+      VIRTUAL_PORT: 3002
+      MONGO_URI: mongodb://mongodb:27017/cvic?authSource=admin
+    networks:
+      - quimera-ingress
+      - quimera-db
+    deploy:
+      mode: replicated
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+
+  moodrobotics:
+    image: ${REGISTRY_URL:-registry.moodrobotics.com}/mood/moodrobotics-web:${MOODROBOTICS_TAG:-latest}
+    environment:
+      NODE_ENV: production
+      PORT: 3003
+      # Exposición con DonDominio / Nginx Proxy Web
+      VIRTUAL_HOST: moodrobotics.com,www.moodrobotics.com
+      VIRTUAL_PORT: 3003
+    networks:
+      - quimera-ingress
+    deploy:
+      mode: replicated
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1.5G
+
+networks:
+  quimera-ingress:
+    external: true
+  quimera-db:
+    external: true
