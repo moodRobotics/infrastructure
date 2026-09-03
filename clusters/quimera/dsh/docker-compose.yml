@@ -9,10 +9,14 @@ services:
     image: registry.moodrob.com/dsh:release
     environment:
       - NODE_ENV=production
-      - DSH_HOST=0.0.0.0
       - DSH_PORT=3080
       - DSH_HOME=/data/.dsh
       - DSH_WORKSPACE=/data/workspace
+      # Autoridades que el cortafuegos /api acepta además del loopback y de las
+      # IPs del contenedor: sin esto la UI carga pero toda llamada /api da 403.
+      # Añade aquí (separadas por comas) cualquier otro nombre o "ip:puerto" por
+      # el que se entre, p.ej. el acceso directo "10.100.99.99:3101".
+      - DSH_TRUSTED_HOSTS=dsh.moodrobotics.com
       - OPENAI_BASE_URL=http://10.100.99.10:11434/v1
       - OPENAI_API_KEY=dummy_key
       - DSH_MODEL=metalspork/qwen3.8-flash-next-ud:UD-IQ3_XXS
