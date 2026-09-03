@@ -21,8 +21,6 @@ services:
       - VIRTUAL_PORT=3080
     ports:
       - "3091:3080"
-    networks:
-      - quimera-ingress
     volumes:
       - dsh-storage:/data
     deploy:
@@ -52,9 +50,6 @@ services:
     volumes:
       - dsh_projects:/srv
       - filebrowser_db:/database
-networks:
-  quimera-ingress:
-    external: true
 
 volumes:
   dsh-storage:
