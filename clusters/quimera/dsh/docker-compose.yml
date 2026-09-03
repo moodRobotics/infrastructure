@@ -20,7 +20,7 @@ services:
       - VIRTUAL_HOST=dsh.moodrobotics.com
       - VIRTUAL_PORT=3080
     ports:
-      - "3091:3080"
+      - "3101:3080"
     volumes:
       - dsh-storage:/data
     deploy:
@@ -46,7 +46,7 @@ services:
   filebrowser:
     image: filebrowser/filebrowser:latest
     ports:
-      - "4091:80"
+      - "4101:80"
     volumes:
       - dsh-storage:/srv
       - filebrowser_db:/database
