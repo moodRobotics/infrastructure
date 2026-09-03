@@ -9,6 +9,7 @@ services:
     image: registry.moodrob.com/dsh:release
     environment:
       - NODE_ENV=production
+      - DSH_HOST=127.0.0.1
       - DSH_PORT=3080
       - DSH_HOME=/data/.dsh
       - DSH_WORKSPACE=/data/workspace
