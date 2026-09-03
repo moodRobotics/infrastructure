@@ -28,7 +28,7 @@ services:
       replicas: 1
       placement:
         constraints:
-          - node.role == worker
+          - node.hostname == mood999
       update_config:
         parallelism: 1
         delay: 10s
@@ -50,6 +50,12 @@ services:
     volumes:
       - dsh-storage:/srv
       - filebrowser_db:/database
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == mood999
 
 volumes:
   dsh-storage:
