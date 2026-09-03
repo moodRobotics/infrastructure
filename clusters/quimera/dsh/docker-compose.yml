@@ -13,11 +13,14 @@ services:
       - DSH_PORT=3080
       - DSH_HOME=/data/.dsh
       - DSH_WORKSPACE=/data/workspace
-      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
-      - DEEPSEEK_API_BASE=${DEEPSEEK_API_BASE:-https://api.deepseek.com}
+      - OPENAI_BASE_URL=http://10.100.99.10:11434/v1
+      - OPENAI_API_KEY=dummy_key
+      - DSH_MODEL=metalspork/qwen3.8-flash-next-ud:UD-IQ3_XXS
       # Configuración de Ingress para Nginx Proxy Web hacia Cloudflare / DonDominio
       - VIRTUAL_HOST=dsh.moodrobotics.com
       - VIRTUAL_PORT=3080
+    ports:
+      - "3091:3080"
     networks:
       - quimera-ingress
     volumes:
@@ -41,10 +44,20 @@ services:
       retries: 3
       start_period: 25s
 
+# Añadimos un explorador de archivos web súper ligero
+  filebrowser:
+    image: filebrowser/filebrowser:latest
+    ports:
+      - "4091:80"
+    volumes:
+      - dsh_projects:/srv
+      - filebrowser_db:/database
 networks:
   quimera-ingress:
     external: true
 
 volumes:
   dsh-storage:
-    name: dsh-storage
+    driver: local
+  filebrowser_db:
+    driver: local
