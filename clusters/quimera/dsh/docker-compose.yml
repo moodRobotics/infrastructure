@@ -48,7 +48,7 @@ services:
     ports:
       - "4091:80"
     volumes:
-      - dsh_projects:/srv
+      - dsh-storage:/srv
       - filebrowser_db:/database
 
 volumes:
