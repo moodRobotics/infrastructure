@@ -6,7 +6,7 @@ version: '3.8'
 
 services:
   dsh:
-    image: registry.moodrobotics.com/dsh:release
+    image: registry.moodrob.com/dsh:release
     environment:
       - NODE_ENV=production
       - DSH_HOST=0.0.0.0

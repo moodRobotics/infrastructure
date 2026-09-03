@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   hereda-gestion:
-    image: ${REGISTRY_URL:-registry.moodrobotics.com}/hereda/gestion-app:${HEREDA_GESTION_TAG:-latest}
+    image: ${REGISTRY_URL:-registry.moodrob.com}/hereda/gestion-app:${HEREDA_GESTION_TAG:-latest}
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -28,7 +28,7 @@ services:
           memory: 2G
 
   hereda-api:
-    image: ${REGISTRY_URL:-registry.moodrobotics.com}/hereda/api-service:${HEREDA_API_TAG:-latest}
+    image: ${REGISTRY_URL:-registry.moodrob.com}/hereda/api-service:${HEREDA_API_TAG:-latest}
     environment:
       NODE_ENV: production
       PORT: 4000

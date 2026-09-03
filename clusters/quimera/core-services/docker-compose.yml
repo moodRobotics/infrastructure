@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   one-tool:
-    image: ${REGISTRY_URL:-registry.moodrobotics.com}/mood/1-tool:${ONE_TOOL_TAG:-latest}
+    image: ${REGISTRY_URL:-registry.moodrob.com}/mood/1-tool:${ONE_TOOL_TAG:-latest}
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -32,7 +32,7 @@ services:
       retries: 3
 
   paypirus:
-    image: ${REGISTRY_URL:-registry.moodrobotics.com}/mood/paypirus:${PAYPIRUS_TAG:-latest}
+    image: ${REGISTRY_URL:-registry.moodrob.com}/mood/paypirus:${PAYPIRUS_TAG:-latest}
     environment:
       NODE_ENV: production
       PORT: 3001
@@ -57,7 +57,7 @@ services:
           memory: 2G
 
   cvic:
-    image: ${REGISTRY_URL:-registry.moodrobotics.com}/mood/cvic:${CVIC_TAG:-latest}
+    image: ${REGISTRY_URL:-registry.moodrob.com}/mood/cvic:${CVIC_TAG:-latest}
     environment:
       NODE_ENV: production
       PORT: 3002
@@ -82,7 +82,7 @@ services:
           memory: 2G
 
   moodrobotics:
-    image: ${REGISTRY_URL:-registry.moodrobotics.com}/mood/moodrobotics-web:${MOODROBOTICS_TAG:-latest}
+    image: ${REGISTRY_URL:-registry.moodrob.com}/mood/moodrobotics-web:${MOODROBOTICS_TAG:-latest}
     environment:
       NODE_ENV: production
       PORT: 3003
