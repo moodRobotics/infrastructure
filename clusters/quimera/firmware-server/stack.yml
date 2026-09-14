@@ -13,10 +13,10 @@
 #     mkdir -p /mnt/swarm-storage/firmware-server/mongo
 #
 # Entrada: Nginx Proxy Manager, fuera de este stack. Un proxy host para
-# firmware.moodrobotics.com -> http://<cualquier nodo del swarm>:3061 con
+# firmware.moodrobotics.com -> http://<cualquier nodo del swarm>:3062 con
 # certificado Let's Encrypt. Aqui no hay etiquetas ni redes de proxy.
 #
-# Puertos: sufijo 61 (3061 frontend / 5061 backend / 27061 mongo).
+# Puertos: sufijo 62 (3062 frontend / 5062 backend / 27062 mongo).
 # ─────────────────────────────────────────────────────────────────────────
 
 services:
@@ -28,7 +28,7 @@ services:
     volumes:
       - mongo_data:/data/db
     ports:
-      - "27061:27017"
+      - "27062:27017"
     logging:
       driver: "json-file"
       options:
@@ -64,7 +64,7 @@ services:
     networks:
       - firmware_network
     ports:
-      - "5061:5000"
+      - "5062:5000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 30s
@@ -90,10 +90,10 @@ services:
       - TZ=Europe/Madrid
     networks:
       - firmware_network
-    # 3061 se publica en el routing mesh: Nginx Proxy Manager apunta a
+    # 3062 se publica en el routing mesh: Nginx Proxy Manager apunta a
     # cualquier nodo del swarm y llega igual.
     ports:
-      - "3061:80"
+      - "3062:80"
     deploy:
       replicas: 1
       update_config:
