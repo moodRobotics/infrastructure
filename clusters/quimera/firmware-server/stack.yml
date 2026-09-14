@@ -1,0 +1,117 @@
+# ─────────────────────────────────────────────────────────────────────────
+# Stack de Portainer para firmware-server  ·  Docker Swarm "quimera"
+#
+# ⚠️  Este fichero contiene las CLAVES en claro (por decision de despliegue,
+#     como el resto de stacks de la casa). Manten el repositorio PRIVADO.
+#     Si se filtra, rota DEVICE_PASS, ADMIN_API_KEY y la clave de Mongo, y
+#     cambia OTA_PASS en las placas (Ajustes) y FW_API_KEY en tools/publish.env.
+#
+# Colocacion: solo mongo va en mood003, que es el nodo con /mnt/swarm-storage
+# (volumen bind local). Los binarios viven en Mongo (firmware_blobs), asi que
+# backend y frontend no tienen estado y corren en cualquier nodo (routing mesh).
+# Antes del primer deploy, en mood003:
+#     mkdir -p /mnt/swarm-storage/firmware-server/mongo
+#
+# Entrada: Nginx Proxy Manager, fuera de este stack. Un proxy host para
+# firmware.moodrobotics.com -> http://<cualquier nodo del swarm>:3061 con
+# certificado Let's Encrypt. Aqui no hay etiquetas ni redes de proxy.
+#
+# Puertos: sufijo 61 (3061 frontend / 5061 backend / 27061 mongo).
+# ─────────────────────────────────────────────────────────────────────────
+
+services:
+  mongo:
+    image: mongo:7.0
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: kX6IHfm8a3ZkRCbOR6lO
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27061:27017"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - firmware_network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          # Mongo corre donde esta el disco: mood003.
+          - node.hostname == mood003
+
+  backend:
+    image: registry.moodrob.com/firmware-server/backend:latest
+    environment:
+      - DATABASEURL=mongodb://admin:kX6IHfm8a3ZkRCbOR6lO@mongo:27017/firmware?authSource=admin
+      - APIPORT=5000
+      # Placas (HTTP Basic): lo que llevan en OTA_USER / OTA_PASS.
+      - DEVICE_USER=placa
+      - DEVICE_PASS=6y7HHaqBw7iJcXxXyB5fUBNH
+      # Publicador y panel (X-API-Key).
+      - ADMIN_API_KEY=2c649ac98c5cf5fa3fafb9a25a712ae498d54aca682604cb
+      - EVENTS_TTL_DAYS=180
+      - MAX_UPLOAD_BYTES=8388608
+      - PUBLIC_URL=https://firmware.moodrobotics.com
+      # Dos proxies delante: Nginx Proxy Manager y el nginx del frontend.
+      - TRUST_PROXY=2
+      - TZ=Europe/Madrid
+    networks:
+      - firmware_network
+    ports:
+      - "5061:5000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      replicas: 1
+      # Sin placement: no hay volumen, puede caer en cualquier nodo.
+      update_config:
+        parallelism: 1
+        delay: 30s
+        order: stop-first
+        failure_action: rollback
+      restart_policy:
+        condition: any
+        delay: 10s
+        window: 120s
+
+  frontend:
+    image: registry.moodrob.com/firmware-server/frontend:latest
+    environment:
+      - TZ=Europe/Madrid
+    networks:
+      - firmware_network
+    # 3061 se publica en el routing mesh: Nginx Proxy Manager apunta a
+    # cualquier nodo del swarm y llega igual.
+    ports:
+      - "3061:80"
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+
+volumes:
+  mongo_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /mnt/swarm-storage/firmware-server/mongo
+
+networks:
+  firmware_network:
+    driver: overlay
+    driver_opts:
+      com.docker.network.driver.mtu: 1450
