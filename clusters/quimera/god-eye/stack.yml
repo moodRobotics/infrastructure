@@ -31,6 +31,13 @@
 # al repositorio. La alternativa automatica es `pnpm stack:build`, que genera
 # `stack.yml` desde stack.template.yml y deploy.env.
 
+# Webhooks de redespliegue de Portainer, uno por servicio. Los lee deploy.ps1
+# tras subir las imagenes; Compose y Swarm ignoran los campos `x-`.
+x-portainer-webhooks:
+  api: https://quimera.moodrob.com/api/webhooks/67cc4848-26ae-4ee0-87bc-431718f7d257
+  frontend: https://quimera.moodrob.com/api/webhooks/94b757cf-295e-46b8-b0da-bbee2da49b64
+  worker: https://quimera.moodrob.com/api/webhooks/681bddff-b091-4067-ae2a-cf6077ada638
+
 services:
   frontend:
     image: registry.moodrob.com/god-eye/frontend:latest
@@ -110,7 +117,7 @@ services:
   postgis:
     # Copia en el registro propio: Docker Hub limita las descargas anonimas
     # (429 Too Many Requests) y dejaria la base sin arrancar.
-    image: registry.moodrob.com/mirror/postgis/postgis:16-3.4
+    image: postgis/postgis:16-3.4
     environment:
       POSTGRES_USER: godeye
       # CAMBIA: la misma contrasena que en las DATABASE_URL de api y worker.
@@ -136,7 +143,7 @@ services:
 
   redis:
     # Copia en el registro propio, por el mismo limite de Docker Hub.
-    image: registry.moodrob.com/mirror/redis:7-alpine
+    image: redis:7-alpine
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
