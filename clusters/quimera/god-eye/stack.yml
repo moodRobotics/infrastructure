@@ -1,0 +1,156 @@
+# Ejemplo completo del stack de despliegue, sin una sola variable.
+#
+# Todo va escrito en literal: se copia, se sustituyen los valores marcados con
+# CAMBIA y se pega en Portainer. No hace falta definir variables de entorno en
+# su interfaz ni crear secrets de Docker. Lo unico que Portainer necesita aparte
+# son las credenciales del registro privado para bajar las imagenes.
+#
+# Antes de desplegar, cambia como minimo:
+#
+#   - `registry.example.com`          -> el registro de las imagenes (sin protocolo)
+#   - POSTGRES_PASSWORD               -> aparece TRES veces: en postgis y en la
+#                                        DATABASE_URL de api y de worker
+#   - JWT_SECRET                      -> solo en api
+#   - ID_NUMBER_KEY                   -> IDENTICO en api y en worker
+#   - ADMIN_EMAIL / ADMIN_PASSWORD    -> cuenta inicial de administracion
+#   - PUBLIC_WEB_ORIGIN               -> la URL publica del frontend
+#
+# Genera los secretos con:
+#
+#     node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+#
+# Si la contrasena de la base lleva caracteres reservados de URL (@ : / ? #),
+# codificalos en DATABASE_URL o, mas sencillo, usa una base64url como la de
+# arriba, que no los tiene.
+#
+# No los rotes a la ligera una vez desplegado: cambiar JWT_SECRET cierra todas
+# las sesiones, y cambiar ID_NUMBER_KEY deja ilegibles los DNI ya cifrados.
+# La cuenta de administracion solo se crea si la tabla de usuarios esta vacia.
+#
+# Con los valores rellenos, este fichero lleva secretos: no lo vuelvas a subir
+# al repositorio. La alternativa automatica es `pnpm stack:build`, que genera
+# `stack.yml` desde stack.template.yml y deploy.env.
+
+services:
+  frontend:
+    image: registry.example.com/god-eye/frontend:latest
+    ports:
+      - target: 8080
+        published: 3030
+        protocol: tcp
+        mode: ingress
+    depends_on:
+      - api
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+
+  api:
+    image: registry.example.com/god-eye/api:latest
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      # Detras de nginx: sin esto, la auditoria registraria siempre la IP del
+      # proxy en lugar de la de quien consulta.
+      TRUST_PROXY: 1
+      # CAMBIA: URL publica del frontend, con protocolo y sin barra final.
+      PUBLIC_WEB_ORIGIN: https://god-eye.example.com
+      # CAMBIA: la contrasena debe coincidir con POSTGRES_PASSWORD de postgis.
+      DATABASE_URL: postgres://godeye:ao8sfdgvhas98d7fasoduif@postgis:5432/godeye
+      REDIS_URL: redis://redis:6379
+      # CAMBIA: minimo 16 caracteres.
+      JWT_SECRET: t4ow87g6hbbo89SD"·$E213234dw!!!$E
+      # CAMBIA: minimo 8 caracteres. Debe ser el mismo que en worker.
+      ID_NUMBER_KEY: uaydfsuasydfasd
+      # CAMBIA: cuenta inicial. Contrasena de 8 caracteres o mas.
+      ADMIN_EMAIL: srlobo13@gmail.com
+      ADMIN_PASSWORD: el0j0deD10s
+      # Proveedores externos (opcionales: vacios, la funcion queda desactivada).
+      DEEPNEXUS_BASE_URL: ""
+      DEEPNEXUS_API_KEY: ""
+      ESQUELAS_DAILY_BUDGET: 50
+      AISSTREAM_API_KEY: ""
+    depends_on:
+      - postgis
+      - redis
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+
+  worker:
+    image: registry.example.com/god-eye/worker:latest
+    environment:
+      NODE_ENV: production
+      # CAMBIA: la contrasena debe coincidir con POSTGRES_PASSWORD de postgis.
+      DATABASE_URL: postgres://godeye:ao8sfdgvhas98d7fasoduif@postgis:5432/godeye
+      REDIS_URL: redis://redis:6379
+      # CAMBIA: el mismo valor que en api.
+      ID_NUMBER_KEY: uaydfsuasydfasd
+      # Origenes de sincronizacion, en solo lectura (opcionales).
+      LAZARUS_MONGO_URI: ""
+      CIVIC_MONGO_URI: ""
+      SCAVENGER_MONGO_URI: ""
+      AISSTREAM_API_KEY: ""
+    depends_on:
+      - postgis
+      - redis
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+
+  postgis:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: godeye
+      # CAMBIA: la misma contrasena que en las DATABASE_URL de api y worker.
+      # Solo se aplica al crear el volumen: cambiarla despues no altera la base.
+      POSTGRES_PASSWORD: ao8sfdgvhas98d7fasoduif
+      POSTGRES_DB: godeye
+    volumes:
+      - postgis_data:/var/lib/postgresql/data
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+      update_config:
+        # La base no se duplica durante una actualizacion.
+        order: stop-first
+      placement:
+        constraints:
+          # Volumen local: la base tiene que arrancar siempre en el mismo nodo
+          # o apareceria vacia en otro.
+          - node.hostname == mood002
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 5
+      placement:
+        constraints:
+          # Volumen local: la base tiene que arrancar siempre en el mismo nodo
+          # o apareceria vacia en otro.
+          - node.hostname == mood002
+
+volumes:
+  postgis_data:
+    driver: local
+  redis_data:
+    driver: local
