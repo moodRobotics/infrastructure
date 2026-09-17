@@ -33,7 +33,7 @@
 
 services:
   frontend:
-    image: registry.example.com/god-eye/frontend:latest
+    image: registry.moodrob.com/god-eye/frontend:latest
     ports:
       - target: 8080
         published: 3030
@@ -49,7 +49,7 @@ services:
         max_attempts: 5
 
   api:
-    image: registry.example.com/god-eye/api:latest
+    image: registry.moodrob.com/god-eye/api:latest
     environment:
       NODE_ENV: production
       PORT: 3001
@@ -62,7 +62,7 @@ services:
       DATABASE_URL: postgres://godeye:ao8sfdgvhas98d7fasoduif@postgis:5432/godeye
       REDIS_URL: redis://redis:6379
       # CAMBIA: minimo 16 caracteres.
-      JWT_SECRET: t4ow87g6hbbo89SD"·$E213234dw!!!$E
+      JWT_SECRET: t4ow87g6hbbo89SD"·$$E213234dw!!!$$E
       # CAMBIA: minimo 8 caracteres. Debe ser el mismo que en worker.
       ID_NUMBER_KEY: uaydfsuasydfasd
       # CAMBIA: cuenta inicial. Contrasena de 8 caracteres o mas.
@@ -84,7 +84,7 @@ services:
         max_attempts: 5
 
   worker:
-    image: registry.example.com/god-eye/worker:latest
+    image: registry.moodrob.com/god-eye/worker:latest
     environment:
       NODE_ENV: production
       # CAMBIA: la contrasena debe coincidir con POSTGRES_PASSWORD de postgis.
