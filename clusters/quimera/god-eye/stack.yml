@@ -108,7 +108,9 @@ services:
         max_attempts: 5
 
   postgis:
-    image: postgis/postgis:16-3.4
+    # Copia en el registro propio: Docker Hub limita las descargas anonimas
+    # (429 Too Many Requests) y dejaria la base sin arrancar.
+    image: registry.moodrob.com/mirror/postgis/postgis:16-3.4
     environment:
       POSTGRES_USER: godeye
       # CAMBIA: la misma contrasena que en las DATABASE_URL de api y worker.
@@ -133,7 +135,8 @@ services:
           - node.hostname == mood002
 
   redis:
-    image: redis:7-alpine
+    # Copia en el registro propio, por el mismo limite de Docker Hub.
+    image: registry.moodrob.com/mirror/redis:7-alpine
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
