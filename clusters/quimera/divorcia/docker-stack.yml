@@ -65,7 +65,7 @@ services:
         delay: 5s
 
   backend:
-    image: registry.moodrob.com/divorcia/backend:CAMBIAR_TAG
+    image: registry.moodrob.com/divorcia/backend:latest
     # El entrypoint aplica las migraciones (alembic upgrade head) antes de arrancar uvicorn.
     environment:
       ENV: prod
@@ -96,7 +96,7 @@ services:
         max_attempts: 5
 
   worker:
-    image: registry.moodrob.com/divorcia/worker:CAMBIAR_TAG
+    image: registry.moodrob.com/divorcia/worker:latest
     environment:
       ENV: prod
       DATABASE_URL: postgresql+psycopg://divorcia:sd9fs0d9fjsodfjnosdifjsd@db:5432/divorcia
@@ -119,7 +119,7 @@ services:
 
   frontend:
     # nginx: sirve el build de Vite y reenvía /api al servicio backend (frontend/nginx.conf).
-    image: registry.moodrob.com/divorcia/frontend:CAMBIAR_TAG
+    image: registry.moodrob.com/divorcia/frontend:latest
     ports:
       - target: 80
         published: 3066 # CAMBIAR_PUERTO_WEB
