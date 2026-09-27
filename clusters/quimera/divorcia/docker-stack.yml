@@ -76,7 +76,7 @@ services:
       S3_ACCESS_KEY: CAMBIAR_S3_ACCESS_KEY
       S3_SECRET_KEY: CAMBIAR_S3_SECRET_KEY
       SECRET_KEY: CAMBIAR_SECRET_KEY
-      CORS_ORIGINS: '["https://CAMBIAR_DOMINIO"]'
+      CORS_ORIGINS: '["https://divorcia.1-tool.com"]'
     ports:
       - target: 8000
         published: 5066 # CAMBIAR_PUERTO_API
