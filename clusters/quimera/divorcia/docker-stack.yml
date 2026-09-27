@@ -44,7 +44,7 @@ services:
     deploy:
       placement:
         constraints:
-          - node.hostname == CAMBIAR_NODO_DATOS
+          - node.hostname == mood002
       restart_policy:
         condition: any
         delay: 5s
@@ -59,7 +59,7 @@ services:
     deploy:
       placement:
         constraints:
-          - node.hostname == CAMBIAR_NODO_DATOS
+          - node.hostname == mood002
       restart_policy:
         condition: any
         delay: 5s
