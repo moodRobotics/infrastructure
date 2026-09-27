@@ -1,0 +1,69 @@
+# Stack del servicio de vision (apps/vision) para el servidor con GPU.
+#
+# Se pega en Portainer en el entorno de ESA maquina, como stack "Docker
+# Compose" (standalone), no en el swarm del resto de god-eye: la reserva de
+# GPU (`deploy.resources.reservations.devices`) solo la entiende Docker
+# Compose. Antes hace falta el NVIDIA Container Toolkit en el host:
+#
+#     sudo apt-get install -y nvidia-container-toolkit
+#     sudo nvidia-ctk runtime configure --runtime=docker && sudo systemctl restart docker
+#     docker run --rm --gpus all nvidia/cuda:12.8.0-base-ubuntu22.04 nvidia-smi
+#
+# La imagen se construye y se sube desde el repositorio con
+#
+#     node scripts/build-images.mjs --only vision --push
+#
+# y Portainer necesita las credenciales del registro para bajarla. Los pesos
+# de los modelos (unos 2 GB) NO van en la imagen: se descargan la primera vez
+# al volumen `vision_models` y ahi se quedan.
+#
+# Los valores marcados con CAMBIA se sustituyen antes de pegar. El token es el
+# mismo que se pone en god-eye, Administracion › APIs › Vision por IA, con la
+# direccion http://<IP privada de esta maquina>:8600.
+#
+# Si la maquina fuera un nodo del swarm en vez de un host suelto: quitar el
+# bloque `devices`, poner en /etc/docker/daemon.json de ese nodo
+# `"node-generic-resources": ["NVIDIA-GPU=<uuid de nvidia-smi -L>"]`, activar
+# `swarm-resource = "DOCKER_RESOURCE_GPU"` en /etc/nvidia-container-runtime/config.toml
+# y reservar con `generic_resources: [{ discrete_resource_spec: { kind: NVIDIA-GPU, value: 1 } }]`.
+
+services:
+  vision:
+    image: registry.moodrob.com/god-eye/vision:latest
+    restart: unless-stopped
+    environment:
+      # Obligatorio, 16 caracteres o mas. Generar con: openssl rand -hex 32
+      VISION_TOKEN: CAMBIA-token-de-64-hex
+      # Modelos abiertos, sin cuenta. Para SAM 3 o DINOv3 haria falta ademas HF_TOKEN.
+      VISION_DETECTOR: IDEA-Research/grounding-dino-base
+      VISION_SEGMENTER: facebook/sam2.1-hiera-large
+      VISION_DEVICE: auto
+      VISION_PRELOAD: "1"
+      # Teselado y topes; los valores por defecto sirven para 16 GB de GPU.
+      VISION_TILE_PX: "1024"
+      VISION_TILE_OVERLAP_PX: "128"
+      VISION_MAX_PIXELS: "16777216"
+      VISION_MAX_UPLOAD_MB: "24"
+      HF_HOME: /models
+      HF_HUB_DISABLE_TELEMETRY: "1"
+    ports:
+      # Solo por la IP privada (LAN o WireGuard): el servicio no lleva TLS y
+      # DE poder usarlo cualwuier otro elemento, por lo que se puede quitar la IP. "10.0.0.5:8600:8600"
+      - "8600:8600"
+    volumes:
+      - vision_models:/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+volumes:
+  vision_models:
