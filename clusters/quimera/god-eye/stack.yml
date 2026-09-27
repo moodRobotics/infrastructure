@@ -31,12 +31,17 @@
 # al repositorio. La alternativa automatica es `pnpm stack:build`, que genera
 # `stack.yml` desde stack.template.yml y deploy.env.
 
-# Webhooks de redespliegue de Portainer, uno por servicio. Los lee deploy.ps1
-# tras subir las imagenes; Compose y Swarm ignoran los campos `x-`.
-x-portainer-webhooks:
-  api: https://quimera.moodrob.com/api/webhooks/67cc4848-26ae-4ee0-87bc-431718f7d257
-  frontend: https://quimera.moodrob.com/api/webhooks/94b757cf-295e-46b8-b0da-bbee2da49b64
-  worker: https://quimera.moodrob.com/api/webhooks/681bddff-b091-4067-ae2a-cf6077ada638
+# Webhooks de redespliegue de Portainer. No van aqui: son la llave para lanzar
+# un despliegue, y este fichero se versiona. deploy.ps1 los lee de deploy.env,
+# que esta fuera de git:
+#
+#     PORTAINER_API_WEBHOOK=https://portainer.example.com/api/webhooks/<id>
+#     PORTAINER_FRONTEND_WEBHOOK=...
+#     PORTAINER_WORKER_WEBHOOK=...
+#
+# Como ultimo recurso tambien acepta un bloque `x-portainer-webhooks:` aqui
+# mismo (Compose y Swarm ignoran los campos `x-`), pero entonces el secreto
+# queda escrito en un fichero versionado. Usa deploy.env.
 
 services:
   frontend:
@@ -64,7 +69,7 @@ services:
       # proxy en lugar de la de quien consulta.
       TRUST_PROXY: 1
       # CAMBIA: URL publica del frontend, con protocolo y sin barra final.
-      PUBLIC_WEB_ORIGIN: https://god-eye.example.com
+      PUBLIC_WEB_ORIGIN: https://god-eye.1-tool.com
       # CAMBIA: la contrasena debe coincidir con POSTGRES_PASSWORD de postgis.
       DATABASE_URL: postgres://godeye:ao8sfdgvhas98d7fasoduif@postgis:5432/godeye
       REDIS_URL: redis://redis:6379
@@ -76,10 +81,16 @@ services:
       ADMIN_EMAIL: srlobo13@gmail.com
       ADMIN_PASSWORD: el0j0deD10s
       # Proveedores externos (opcionales: vacios, la funcion queda desactivada).
-      DEEPNEXUS_BASE_URL: ""
-      DEEPNEXUS_API_KEY: ""
+      TM2_BASE_URL: ""
+      TM2_API_KEY: ""
       ESQUELAS_DAILY_BUDGET: 50
       AISSTREAM_API_KEY: ""
+      GEOIP_DIR: /app/data/geoip
+    # Ping y traceroute por ICMP (vista cibernetica): solo este permiso.
+    cap_add:
+      - NET_RAW
+    volumes:
+      - geoip_data:/app/data/geoip
     depends_on:
       - postgis
       - redis
@@ -163,4 +174,6 @@ volumes:
   postgis_data:
     driver: local
   redis_data:
+    driver: local
+  geoip_data:
     driver: local
