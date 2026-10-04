@@ -1,27 +1,19 @@
-# Stack de producción para Portainer (Docker Swarm).
+# Stack de producción de divorcia para Portainer (Docker Swarm).
 #
-# Autocontenido a propósito: no usa variables de entorno, ficheros .env ni secretos externos de
-# Docker. Se pega tal cual en Portainer > Stacks > Add stack > Web editor y despliega.
+# Es el fichero definitivo: todos los valores van escritos aquí (incluidas las credenciales, por
+# decisión del propietario del repositorio) y NO usa variables de entorno, ficheros .env ni
+# secretos externos de Docker. Se pega tal cual en Portainer > Stacks > Add stack > Web editor.
+# Los cambios de configuración se hacen editando este fichero y volviendo a pegarlo / actualizar
+# el stack en Portainer; el webhook del stack solo relanza los servicios con la imagen :latest.
 #
-# Este fichero es la PLANTILLA que se publica con el repositorio, así que solo lleva huecos
-# CAMBIAR_*. El que se pega en Portainer es `stack.yml`, que se genera con
+# Entrada: el nginx externo (TLS) apunta divorcia.1-tool.com a http://<nodo del swarm>:3066. El nginx
+# del frontend sirve la web y reenvía /api al backend por la red interna. El backend NO se publica:
+# expuesto directamente, cualquiera podría mandar su propia X-Forwarded-For y saltarse los límites de
+# intentos de login o falsear la IP que queda en las firmas. El 3066 solo debe ser accesible desde el
+# nginx externo (cortafuegos), por el mismo motivo.
 #
-#     python ops/build_stack.py
-#
-# a partir de `deploy.env` (copia de deploy.env.example). Tanto deploy.env como stack.yml están
-# ignorados por git porque llevan la contraseña de la base, la clave de S3 y el secreto de firma.
-# Si prefieres, rellena los huecos a mano y pega el resultado.
-#
-# Sin proxy inverso propio: el TLS y el dominio (divorcia.1-tool.com) los pone el nginx externo,
-# que apunta a http://<cualquier nodo del swarm>:<puerto web> (3066 por defecto). El nginx del frontend sirve
-# la web y reenvía /api al backend por la red interna; el backend se publica además en
-# <puerto api> (5066 por defecto) para acceso directo a la API.
-# Postgres y Redis tienen volúmenes locales, así que se fijan por hostname al nodo de datos
-# (CAMBIAR_NODO_DATOS, p. ej. mood002); comprueba el nombre con `docker node ls`.
-#
-# Huecos: CAMBIAR_DOMINIO (para CORS), CAMBIAR_PUERTO_WEB, CAMBIAR_PUERTO_API, CAMBIAR_REGISTRO (sin protocolo, p. ej.
-# registry.moodrob.com), CAMBIAR_TAG, CAMBIAR_S3_ENDPOINT, CAMBIAR_S3_ACCESS_KEY, CAMBIAR_S3_SECRET_KEY,
-# CAMBIAR_POSTGRES_PASSWORD, CAMBIAR_SECRET_KEY, CAMBIAR_NODO_DATOS.
+# Los .docx/.pdf generados viven en el volumen local `documentos`, compartido por backend y worker,
+# así que ambos se fijan (igual que Postgres y Redis) al nodo de datos mood002.
 
 version: "3.8"
 
@@ -66,26 +58,34 @@ services:
 
   backend:
     image: registry.moodrob.com/divorcia/backend:latest
-    # El entrypoint aplica las migraciones (alembic upgrade head) antes de arrancar uvicorn.
+    # Aplica las migraciones (drizzle) antes de escuchar.
     environment:
-      ENV: prod
-      DATABASE_URL: postgresql+psycopg://divorcia:sd9fs0d9fjsodfjnosdifjsd@db:5432/divorcia
-      REDIS_URL: redis://redis:6379/0
-      S3_ENDPOINT: CAMBIAR_S3_ENDPOINT
-      S3_BUCKET: expedientes
-      S3_ACCESS_KEY: CAMBIAR_S3_ACCESS_KEY
-      S3_SECRET_KEY: CAMBIAR_S3_SECRET_KEY
-      SECRET_KEY: CAMBIAR_SECRET_KEY
-      CORS_ORIGINS: '["https://divorcia.1-tool.com"]'
-    ports:
-      - target: 8000
-        published: 5066 # CAMBIAR_PUERTO_API
-        protocol: tcp
-        mode: ingress
+      NODE_ENV: production
+      PORT: "8000"
+      DATABASE_URL: postgres://divorcia:sd9fs0d9fjsodfjnosdifjsd@db:5432/divorcia
+      REDIS_URL: redis://redis:6379
+      DOCUMENTS_DIR: /documentos
+      CORS_ORIGINS: https://divorcia.1-tool.com
+      # Firma la cookie de sesión; rotarla cierra todas las sesiones.
+      SECRET_KEY: jFaf4bN3Qv5wxjuW4ZUkvn1HYrUYQ8Gva9lJ1e14RJ4
+      # Cuenta de arranque: se crea si no existe. Cambia la contraseña desde Usuarios tras el primer acceso.
+      SUPERADMIN_EMAIL: superadmin@divorcia
+      SUPERADMIN_PASSWORD: pwejzhKI8yrdbEGw
+      # Origen público de la web, para los enlaces de los emails y WhatsApp.
+      PUBLIC_URL: https://divorcia.1-tool.com
+      # Proxies cuya X-Forwarded-For se cree para saber la IP del cliente (límites de intentos, IP de
+      # las firmas): las redes privadas (nginx del frontend, ingress del swarm, nginx externo) y los
+      # rangos de Cloudflare (https://www.cloudflare.com/ips/), que va delante del nginx externo.
+      TRUST_PROXY: "loopback, linklocal, uniquelocal, 173.245.48.0/20, 103.21.244.0/22, 103.22.200.0/22, 103.31.4.0/22, 141.101.64.0/18, 108.162.192.0/18, 190.93.240.0/20, 188.114.96.0/20, 197.234.240.0/22, 198.41.128.0/17, 162.158.0.0/15, 104.16.0.0/13, 104.24.0.0/14, 172.64.0.0/13, 131.0.72.0/22, 2400:cb00::/32, 2606:4700::/32, 2803:f800::/32, 2405:b500::/32, 2405:8100::/32, 2a06:98c0::/29, 2c0f:f248::/32"
+    volumes:
+      - documentos:/documentos
     networks:
       - internal
     deploy:
       replicas: 2
+      placement:
+        constraints:
+          - node.hostname == mood002
       update_config:
         order: start-first
         parallelism: 1
@@ -98,18 +98,42 @@ services:
   worker:
     image: registry.moodrob.com/divorcia/worker:latest
     environment:
-      ENV: prod
-      DATABASE_URL: postgresql+psycopg://divorcia:sd9fs0d9fjsodfjnosdifjsd@db:5432/divorcia
-      REDIS_URL: redis://redis:6379/0
-      S3_ENDPOINT: CAMBIAR_S3_ENDPOINT
-      S3_BUCKET: expedientes
-      S3_ACCESS_KEY: CAMBIAR_S3_ACCESS_KEY
-      S3_SECRET_KEY: CAMBIAR_S3_SECRET_KEY
+      NODE_ENV: production
+      DATABASE_URL: postgres://divorcia:sd9fs0d9fjsodfjnosdifjsd@db:5432/divorcia
+      REDIS_URL: redis://redis:6379
+      DOCUMENTS_DIR: /documentos
       SOFFICE_BIN: soffice
+      WORKER_CONCURRENCY: "1"
+      PUBLIC_URL: https://divorcia.1-tool.com
+      # Email por SMTP: rellenar para activar (SMTP_HOST o MAIL_FROM vacíos = canal desactivado).
+      SMTP_HOST: ""
+      SMTP_PORT: "587"
+      SMTP_SECURE: "false"
+      # Con SMTP_SECURE=false exige STARTTLS (no manda la contraseña ni los códigos en claro).
+      SMTP_REQUIRE_TLS: "true"
+      SMTP_USER: ""
+      SMTP_PASSWORD: ""
+      MAIL_FROM: ""
+      # WhatsApp Cloud API de Meta: rellenar para activar (token, id de número o plantilla vacíos =
+      # desactivado). WHATSAPP_TEMPLATE: plantilla aprobada de avisos ({{1}} asunto, {{2}} enlace).
+      # WHATSAPP_TEMPLATE_OTP: plantilla de categoría AUTENTICACIÓN para los códigos de firma (sin ella
+      # los códigos solo se envían por email).
+      WHATSAPP_TOKEN: ""
+      WHATSAPP_PHONE_NUMBER_ID: ""
+      WHATSAPP_TEMPLATE: ""
+      WHATSAPP_TEMPLATE_OTP: ""
+      WHATSAPP_TEMPLATE_LANG: es
+    volumes:
+      - documentos:/documentos
     networks:
       - internal
+    # Deja terminar una conversión a PDF (hasta 120 s) o un envío SMTP antes del SIGKILL.
+    stop_grace_period: 150s
     deploy:
       replicas: 1
+      placement:
+        constraints:
+          - node.hostname == mood002
       update_config:
         order: stop-first
       restart_policy:
@@ -118,11 +142,11 @@ services:
         max_attempts: 5
 
   frontend:
-    # nginx: sirve el build de Vite y reenvía /api al servicio backend (frontend/nginx.conf).
+    # nginx: sirve el build de Vite y reenvía /api al servicio backend (apps/frontend/nginx.conf).
     image: registry.moodrob.com/divorcia/frontend:latest
     ports:
       - target: 80
-        published: 3066 # CAMBIAR_PUERTO_WEB
+        published: 3066
         protocol: tcp
         mode: ingress
     networks:
@@ -145,3 +169,4 @@ networks:
 volumes:
   pgdata:
   redisdata:
+  documentos:
