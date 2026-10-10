@@ -8,6 +8,10 @@
 # image: de este fichero a que registro y con que nombre subirla.
 # La imagen ya lleva el sitio y la configuracion de nginx: no monta nada del host.
 #
+# Compatible con el esquema de compose de Portainer (sin pull_policy): para bajar
+# la imagen nueva, deploy.ps1 lo pide en cada despliegue y, a mano, se usa
+# "Pull and redeploy" / "Re-pull image" en el stack.
+#
 # El registro registry.moodrob.com pide autenticacion: debe estar dado de alta
 # en Portainer (Registries) para que el servidor pueda bajar la imagen.
 # ---------------------------------------------------------------------------
