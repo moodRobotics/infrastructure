@@ -1,0 +1,41 @@
+# ---------------------------------------------------------------------------
+# Sucedalia · stack de PRODUCCION para Portainer
+#
+# Autocontenido: no necesita .env ni variables de entorno. Se pega tal cual en
+# Portainer (Stacks > Add stack > Web editor).
+#
+# Despliega la imagen que construye y sube deploy.ps1, que lee de la linea
+# image: de este fichero a que registro y con que nombre subirla.
+# La imagen ya lleva el sitio y la configuracion de nginx: no monta nada del host.
+#
+# El registro registry.moodrob.com pide autenticacion: debe estar dado de alta
+# en Portainer (Registries) para que el servidor pueda bajar la imagen.
+# ---------------------------------------------------------------------------
+services:
+  sucedalia:
+    image: registry.moodrob.com/sucedalia/web:latest
+    container_name: sucedalia-web
+    restart: unless-stopped
+    pull_policy: always
+    ports:
+      - "3071:80"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    labels:
+      com.sucedalia.description: "Sitio web de Sucedalia Abogados"
+    # Si usa Traefik como proxy inverso, descomente y ajuste:
+    # labels:
+    #   traefik.enable: "true"
+    #   traefik.http.routers.sucedalia.rule: "Host(`sucedalia.com`) || Host(`www.sucedalia.com`)"
+    #   traefik.http.routers.sucedalia.entrypoints: "websecure"
+    #   traefik.http.routers.sucedalia.tls.certresolver: "letsencrypt"
+    #   traefik.http.services.sucedalia.loadbalancer.server.port: "80"
+    networks:
+      - sucedalia
+
+networks:
+  sucedalia:
+    driver: bridge
