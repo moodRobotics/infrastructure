@@ -16,7 +16,6 @@ services:
     image: registry.moodrob.com/sucedalia/web:latest
     container_name: sucedalia-web
     restart: unless-stopped
-    pull_policy: always
     ports:
       - "3071:80"
     healthcheck:
