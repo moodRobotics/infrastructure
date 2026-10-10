@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# Sucedalia · stack de PRODUCCION para Portainer
+# Sucedalia · stack de PRODUCCION para Portainer (Docker Swarm)
 #
 # Autocontenido: no necesita .env ni variables de entorno. Se pega tal cual en
 # Portainer (Stacks > Add stack > Web editor).
@@ -8,18 +8,19 @@
 # image: de este fichero a que registro y con que nombre subirla.
 # La imagen ya lleva el sitio y la configuracion de nginx: no monta nada del host.
 #
-# Compatible con el esquema de compose de Portainer (sin pull_policy): para bajar
+# Pensado para Swarm: sin container_name ni restart (Swarm los ignora), el
+# reinicio va en deploy.restart_policy y la red es la overlay que Swarm crea
+# por defecto para el stack. El puerto 3071 se publica en todos los nodos.
+# Sin pull_policy: el esquema de compose de Portainer no lo admite. Para bajar
 # la imagen nueva, deploy.ps1 lo pide en cada despliegue y, a mano, se usa
-# "Pull and redeploy" / "Re-pull image" en el stack.
+# "Update the service" con "Re-pull image" en Portainer.
 #
 # El registro registry.moodrob.com pide autenticacion: debe estar dado de alta
-# en Portainer (Registries) para que el servidor pueda bajar la imagen.
+# en Portainer (Registries) para que los nodos puedan bajar la imagen.
 # ---------------------------------------------------------------------------
 services:
   sucedalia:
     image: registry.moodrob.com/sucedalia/web:latest
-    container_name: sucedalia-web
-    restart: unless-stopped
     ports:
       - "3071:80"
     healthcheck:
@@ -27,18 +28,20 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-    labels:
-      com.sucedalia.description: "Sitio web de Sucedalia Abogados"
-    # Si usa Traefik como proxy inverso, descomente y ajuste:
-    # labels:
-    #   traefik.enable: "true"
-    #   traefik.http.routers.sucedalia.rule: "Host(`sucedalia.com`) || Host(`www.sucedalia.com`)"
-    #   traefik.http.routers.sucedalia.entrypoints: "websecure"
-    #   traefik.http.routers.sucedalia.tls.certresolver: "letsencrypt"
-    #   traefik.http.services.sucedalia.loadbalancer.server.port: "80"
-    networks:
-      - sucedalia
-
-networks:
-  sucedalia:
-    driver: bridge
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+      update_config:
+        # Arranca la version nueva antes de parar la vieja: sin corte al actualizar.
+        order: start-first
+        failure_action: rollback
+      labels:
+        com.sucedalia.description: "Sitio web de Sucedalia Abogados"
+        # Si usa Traefik como proxy inverso en el Swarm, descomente y ajuste:
+        # traefik.enable: "true"
+        # traefik.http.routers.sucedalia.rule: "Host(`sucedalia.com`) || Host(`www.sucedalia.com`)"
+        # traefik.http.routers.sucedalia.entrypoints: "websecure"
+        # traefik.http.routers.sucedalia.tls.certresolver: "letsencrypt"
+        # traefik.http.services.sucedalia.loadbalancer.server.port: "80"
