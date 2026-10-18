@@ -1,0 +1,48 @@
+# QUIMERA (Docker Swarm: mood001, mood002, mood003, mood999): API y panel de administracion.
+# La voz (stt/tts) corre aparte en dragon: ver compose.voice.yml.
+# Las imagenes las sube deploy.ps1 a registry.moodrob.com.
+#   .\deploy.ps1 -Services api,frontend -Deploy -SwarmContext quimera
+#   (o en el manager: docker stack deploy -c compose.swarm.yml --with-registry-auth mood-rlcd)
+#
+# Antes del primer despliegue:
+#   - la api se fija a mood999 (node.hostname): ahi vive el volumen api-data
+#   - edita los valores CAMBIA (deploy.ps1 se niega a desplegar si quedan)
+services:
+  api:
+    image: registry.moodrob.com/mood-rlcd/api:latest
+    environment:
+      ADMIN_TOKEN: CAMBIA-TOKEN-DEL-PANEL
+      SERVICE_TOKEN: ""
+      TZ: Europe/Madrid
+      # Solo siembran la configuracion la primera vez; despues manda el panel (volumen api-data).
+      OLLAMA_URL: http://192.168.40.90:11434
+      OLLAMA_MODEL: qwen3.6:27b
+      STT_URL: http://192.168.40.90:8001
+      TTS_URL: http://192.168.40.90:8002
+      WHISPER_MODEL: large-v3-turbo
+      PIPER_VOICE: es_ES-davefx-medium
+    volumes:
+      - api-data:/data
+    ports:
+      - "8765:8765"
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.hostname == mood999]   # api-data es un volumen local: siempre el mismo nodo
+      restart_policy: { condition: any, delay: 5s }
+
+  frontend:
+    image: registry.moodrob.com/mood-rlcd/frontend:latest
+    environment:
+      ADMIN_TOKEN: CAMBIA-TOKEN-DEL-PANEL
+      API_URL: http://api:8765
+      COOKIE_SECURE: "0"
+      TRUST_PROXY: "0"
+    ports:
+      - "3000:3000"
+    deploy:
+      replicas: 1
+      restart_policy: { condition: any, delay: 5s }
+
+volumes:
+  api-data:
