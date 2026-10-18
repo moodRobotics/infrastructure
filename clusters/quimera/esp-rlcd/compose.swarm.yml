@@ -24,7 +24,7 @@ services:
     volumes:
       - api-data:/data
     ports:
-      - "8765:8765"
+      - "5065:8765"
     deploy:
       replicas: 1
       placement:
@@ -36,10 +36,10 @@ services:
     environment:
       ADMIN_TOKEN: CAMBIA-TOKEN-DEL-PANEL
       API_URL: http://api:8765
-      COOKIE_SECURE: "0"
-      TRUST_PROXY: "0"
+      COOKIE_SECURE: "1"   # el panel va por HTTPS en mood.moodrob.com
+      TRUST_PROXY: "1"    # detras del proxy inverso (IP real en el limite de intentos de acceso)
     ports:
-      - "3000:3000"
+      - "3065:3000"
     deploy:
       replicas: 1
       restart_policy: { condition: any, delay: 5s }
