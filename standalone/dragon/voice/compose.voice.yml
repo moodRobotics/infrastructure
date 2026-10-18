@@ -1,0 +1,39 @@
+# Servicios de voz: voz a texto (Whisper, GPU NVIDIA) y texto a voz (Piper).
+# Pueden ir en la misma maquina que la API (compose.yml) o en otra con GPU:
+#   docker compose -f compose.voice.yml up -d --build
+# Los valores van aqui directamente (no leen .env). Si pones SERVICE_TOKEN, pon el mismo en la API.
+services:
+  stt:
+    build: ./services/stt
+    restart: unless-stopped
+    environment:
+      WHISPER_MODEL: large-v3-turbo
+      SERVICE_TOKEN: ""
+    volumes:
+      - stt-models:/models
+    ports:
+      - "0.0.0.0:8001:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    logging: { driver: json-file, options: { max-size: 10m, max-file: "3" } }
+
+  tts:
+    build: ./services/tts
+    restart: unless-stopped
+    environment:
+      PIPER_VOICE: es_ES-davefx-medium
+      SERVICE_TOKEN: ""
+    volumes:
+      - tts-voices:/voices
+    ports:
+      - "0.0.0.0:8002:8000"
+    logging: { driver: json-file, options: { max-size: 10m, max-file: "3" } }
+
+volumes:
+  stt-models:
+  tts-voices:
