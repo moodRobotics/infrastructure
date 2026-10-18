@@ -1,10 +1,12 @@
-# Servicios de voz: voz a texto (Whisper, GPU NVIDIA) y texto a voz (Piper).
-# Pueden ir en la misma maquina que la API (compose.yml) o en otra con GPU:
-#   docker compose -f compose.voice.yml up -d --build
-# Los valores van aqui directamente (no leen .env). Si pones SERVICE_TOKEN, pon el mismo en la API.
+# DRAGON (Docker standalone, GPU NVIDIA): solo voz a texto y texto a voz.
+# Las imagenes las sube deploy.ps1 a registry.moodrob.com. En dragon:
+#   docker compose -f compose.voice.yml -p mood-voice pull
+#   docker compose -f compose.voice.yml -p mood-voice up -d
+# (o  .\deploy.ps1 -Services stt,tts -Deploy -DragonContext dragon  desde tu equipo)
+# Los valores van aqui directamente. Si pones SERVICE_TOKEN, pon el mismo en compose.swarm.yml.
 services:
   stt:
-    build: ./services/stt
+    image: registry.moodrob.com/mood-rlcd/stt:latest
     restart: unless-stopped
     environment:
       WHISPER_MODEL: large-v3-turbo
@@ -23,7 +25,7 @@ services:
     logging: { driver: json-file, options: { max-size: 10m, max-file: "3" } }
 
   tts:
-    build: ./services/tts
+    image: registry.moodrob.com/mood-rlcd/tts:latest
     restart: unless-stopped
     environment:
       PIPER_VOICE: es_ES-davefx-medium
