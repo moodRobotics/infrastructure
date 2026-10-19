@@ -36,9 +36,11 @@ services:
       DEEPNEXUS_API_URL: http://mood001:3081
       DEEPNEXUS_API_KEY: dnx_dev_maui_bridge_key
       GOD_EYE_API_URL: http://mood002:3030
-      OSM_LOCAL_ENABLED: 'false'
-      OSM_LOCAL_NOMINATIM_URL: ''
-      OSM_LOCAL_OVERPASS_URL: ''
+      # Nodo OSM local de España (servicios nominatim/overpass de este stack).
+      # Mientras importan, la cascada sigue con CartoCiudad.
+      OSM_LOCAL_ENABLED: 'true'
+      OSM_LOCAL_NOMINATIM_URL: http://nominatim:8080
+      OSM_LOCAL_OVERPASS_URL: http://overpass/api/interpreter
       OSM_LOCAL_TILES_URL: ''
       CROSSLINK_RADIUS_METERS: 350
     deploy:
@@ -62,6 +64,8 @@ services:
       DEEPNEXUS_API_KEY: dnx_dev_maui_bridge_key
       FRESHNESS_SWEEP_INTERVAL_MINUTES: 30
       CROSSLINK_RADIUS_METERS: 350
+      OSM_LOCAL_ENABLED: 'true'
+      OSM_LOCAL_OVERPASS_URL: http://overpass/api/interpreter
     deploy:
       replicas: 1
       placement:
@@ -117,8 +121,77 @@ services:
         delay: 5s
         max_attempts: 5
 
+  # Nodo OpenStreetMap España: geocodificación sin límites de tasa externos.
+  # Primer arranque (en mood001): descarga spain-latest.osm.pbf (~1,3 GB) e importa (varias horas).
+  # Listo cuando `curl http://nominatim:8080/status` devuelve OK.
+  nominatim:
+    image: mediagis/nominatim:4.4
+    environment:
+      PBF_URL: https://download.geofabrik.de/europe/spain-latest.osm.pbf
+      REPLICATION_URL: https://download.geofabrik.de/europe/spain-updates/
+      IMPORT_WIKIPEDIA: 'false'
+      NOMINATIM_PASSWORD: maui_osm_password
+    volumes:
+      - nominatim_data:/var/lib/postgresql/14/main
+      - nominatim_flatnode:/nominatim/flatnode
+      # Equivalente a shm_size (no soportado en swarm)
+      - type: tmpfs
+        target: /dev/shm
+        tmpfs:
+          size: 1073741824
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == mood001
+      resources:
+        limits:
+          memory: 12G
+      restart_policy:
+        condition: on-failure
+        delay: 60s
+        max_attempts: 3
+      update_config:
+        order: stop-first
+
+  # Overpass propio para el descubrimiento del worker (consultas por bbox, sin áreas).
+  # Primer arranque (en mood001): descarga el PBF de España, lo convierte e indexa (1-3 horas).
+  overpass:
+    image: wiktorn/overpass-api:latest
+    environment:
+      OVERPASS_MODE: init
+      OVERPASS_META: 'no'
+      OVERPASS_USE_AREAS: 'false'
+      OVERPASS_PLANET_URL: https://download.geofabrik.de/europe/spain-latest.osm.pbf
+      OVERPASS_PLANET_PREPROCESS: 'mv /db/planet.osm.bz2 /db/planet.osm.pbf && osmium cat -o /db/planet.osm.bz2 /db/planet.osm.pbf && rm /db/planet.osm.pbf'
+      OVERPASS_DIFF_URL: https://download.geofabrik.de/europe/spain-updates/
+      OVERPASS_UPDATE_SLEEP: 3600
+      OVERPASS_COMPRESSION: gz
+    volumes:
+      - overpass_data:/db
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == mood001
+      resources:
+        limits:
+          memory: 6G
+      restart_policy:
+        condition: on-failure
+        delay: 60s
+        max_attempts: 3
+      update_config:
+        order: stop-first
+
 volumes:
   postgis_data:
     driver: local
   redis_data:
+    driver: local
+  nominatim_data:
+    driver: local
+  nominatim_flatnode:
+    driver: local
+  overpass_data:
     driver: local
