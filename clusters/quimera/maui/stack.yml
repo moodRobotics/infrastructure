@@ -3,7 +3,7 @@ services:
     image: registry.moodrob.com/maui/frontend:latest
     ports:
       - target: 3000
-        published: 3087
+        published: 3097
         protocol: tcp
         mode: ingress
     deploy:
@@ -20,7 +20,7 @@ services:
     image: registry.moodrob.com/maui/api:latest
     ports:
       - target: 4040
-        published: 5087
+        published: 5097
         protocol: tcp
         mode: host
     environment:
