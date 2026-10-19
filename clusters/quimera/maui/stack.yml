@@ -1,0 +1,124 @@
+services:
+  frontend:
+    image: registry.moodrob.com/maui/frontend:latest
+    ports:
+      - target: 3000
+        published: 3081
+        protocol: tcp
+        mode: ingress
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == mood009
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+
+  api:
+    image: registry.moodrob.com/maui/api:latest
+    ports:
+      - target: 4040
+        published: 5081
+        protocol: tcp
+        mode: host
+    environment:
+      NODE_ENV: production
+      PORT: 4040
+      LOG_LEVEL: info
+      DATABASE_URL: postgres://maui:maui_secret_password@postgis:5432/maui
+      REDIS_URL: redis://redis:6379
+      CORS_ORIGIN: '*'
+      JWT_SECRET: maui_wayfinder_polynesian_secret_key_2026
+      MAUI_MASTER_API_KEY: maui_live_k8f92j49d8s7a6f5g4h3j2k1
+      # Ajustar a la URL real de DeepNexus / GOD-EYE dentro del swarm
+      DEEPNEXUS_API_URL: http://mood001:3081
+      DEEPNEXUS_API_KEY: dnx_dev_maui_bridge_key
+      GOD_EYE_API_URL: http://mood002:3030
+      OSM_LOCAL_ENABLED: 'false'
+      OSM_LOCAL_NOMINATIM_URL: ''
+      OSM_LOCAL_OVERPASS_URL: ''
+      OSM_LOCAL_TILES_URL: ''
+      CROSSLINK_RADIUS_METERS: 350
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == mood009
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+
+  worker:
+    image: registry.moodrob.com/maui/worker:latest
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: info
+      DATABASE_URL: postgres://maui:maui_secret_password@postgis:5432/maui
+      REDIS_URL: redis://redis:6379
+      DEEPNEXUS_API_URL: http://mood001:3081
+      DEEPNEXUS_API_KEY: dnx_dev_maui_bridge_key
+      FRESHNESS_SWEEP_INTERVAL_MINUTES: 30
+      CROSSLINK_RADIUS_METERS: 350
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == mood009
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+
+  postgis:
+    image: postgis/postgis:16-3.4
+    ports:
+      - target: 5432
+        published: 5438
+        protocol: tcp
+        mode: host
+    environment:
+      POSTGRES_USER: maui
+      POSTGRES_PASSWORD: maui_secret_password
+      POSTGRES_DB: maui
+    volumes:
+      - postgis_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U maui -d maui']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == mood009
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+      update_config:
+        order: stop-first
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == mood009
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 5
+
+volumes:
+  postgis_data:
+    driver: local
+  redis_data:
+    driver: local
