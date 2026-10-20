@@ -128,6 +128,12 @@ services:
   # Listo cuando `curl http://nominatim:8080/status` devuelve OK.
   nominatim:
     image: mediagis/nominatim:4.4
+    # Publicado para otros desarrollos (GOD-EYE, TM2...): http://<nodo>:8092/search?q=...&format=jsonv2
+    ports:
+      - target: 8080
+        published: 8092
+        protocol: tcp
+        mode: ingress
     environment:
       PBF_URL: https://download.geofabrik.de/europe/spain-latest.osm.pbf
       REPLICATION_URL: https://download.geofabrik.de/europe/spain-updates/
@@ -160,6 +166,12 @@ services:
   # Primer arranque (en mood001): descarga el PBF de España, lo convierte e indexa (1-3 horas).
   overpass:
     image: wiktorn/overpass-api:latest
+    # Publicado para otros desarrollos: POST http://<nodo>:8093/api/interpreter (data=<consulta OverpassQL>)
+    ports:
+      - target: 80
+        published: 8093
+        protocol: tcp
+        mode: ingress
     environment:
       OVERPASS_MODE: init
       OVERPASS_META: 'no'
@@ -199,7 +211,7 @@ services:
         if [ -f /data/mbtiles/spain.mbtiles ]; then
           echo "spain.mbtiles ya existe, nada que hacer"
         else
-          java -Xmx5g -jar /planetiler.jar --area=spain --download             --download_dir=/data/sources --tmpdir=/data/tmp             --output=/data/mbtiles/spain.tmp.mbtiles --force           && mv /data/mbtiles/spain.tmp.mbtiles /data/mbtiles/spain.mbtiles           && rm -rf /data/tmp
+          java -Xmx5g -cp @/app/jib-classpath-file com.onthegomap.planetiler.Main --area=spain --download             --download_dir=/data/sources --tmpdir=/data/tmp             --output=/data/mbtiles/spain.tmp.mbtiles --force           && mv /data/mbtiles/spain.tmp.mbtiles /data/mbtiles/spain.mbtiles           && rm -rf /data/tmp
         fi
     volumes:
       - tiles_data:/data
@@ -221,6 +233,14 @@ services:
   # (proxy del frontend). Estilo: /tiles/styles/dark/style.json
   tileserver:
     image: maptiler/tileserver-gl:v4.4.10
+    # La imagen corre como `node`, pero el volumen lo crea root (tilegen): sin esto no puede crear styles/
+    user: root
+    # Publicado en el swarm para otros desarrollos: http://<cualquier-nodo>:8091/ (estilo: /styles/dark/style.json)
+    ports:
+      - target: 8080
+        published: 8091
+        protocol: tcp
+        mode: ingress
     entrypoint: ['sh', '-c']
     command:
       - |
