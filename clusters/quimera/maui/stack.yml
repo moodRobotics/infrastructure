@@ -255,11 +255,29 @@ services:
     command:
       - |
         cd /data
-        # fonts/ y sprites/ deben existir (aunque vacíos): el estilo usa glyphs y sprites remotos de openmaptiles
+        # fonts/ y sprites/ deben existir (aunque vacíos)
         mkdir -p styles fonts sprites
         until [ -f mbtiles/spain.mbtiles ]; do echo "esperando spain.mbtiles..."; sleep 30; done
-        # La imagen no trae wget/curl: el estilo se descarga con el fetch de node y se apunta al mbtiles local
-        until [ -s styles/dark.json ]; do
+        # Fuentes (glyphs) del estilo: Metropolis y Noto Sans en PBF, del release de openmaptiles/fonts (una sola vez).
+        # La imagen no trae wget/curl/unzip: se usa el python3 de la imagen.
+        until [ -d "fonts/Noto Sans Regular" ] && [ -d "fonts/Metropolis Regular" ]; do
+          cat > /tmp/fonts.py <<'PY'
+        import io, urllib.request, zipfile
+        data = urllib.request.urlopen('https://github.com/openmaptiles/fonts/releases/download/v2.0/v2.0.zip', timeout=300).read()
+        z = zipfile.ZipFile(io.BytesIO(data))
+        n = 0
+        for name in z.namelist():
+            top = name.split('/')[0]
+            if top.startswith('Metropolis ') or top.startswith('Noto Sans '):
+                z.extract(name, '/data/fonts')
+                n += 1
+        print('fuentes extraidas:', n)
+        PY
+          python3 /tmp/fonts.py || { echo "reintentando fuentes en 30s..."; sleep 30; }
+        done
+        # Estilo Dark Matter: se descarga con el fetch de node, se apunta al mbtiles local y a las fuentes locales.
+        # (el estilo original usa api.maptiler.com con {key}: se regenera si el guardado aún lo contiene)
+        until [ -s styles/dark.json ] && ! grep -q maptiler styles/dark.json; do
           rm -f styles/dark.json
           node -e "
             fetch('https://raw.githubusercontent.com/openmaptiles/dark-matter-gl-style/master/style.json')
@@ -268,6 +286,7 @@ services:
                 for (const src of Object.values(style.sources)) {
                   if (src.type === 'vector') { delete src.tiles; src.url = 'mbtiles://{spain}'; }
                 }
+                style.glyphs = '{fontstack}/{range}.pbf';
                 require('fs').writeFileSync('styles/dark.json', JSON.stringify(style));
               })
               .catch(e => { console.error('No se pudo descargar el estilo: ' + e.message); process.exit(1); })
