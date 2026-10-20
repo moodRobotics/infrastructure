@@ -181,6 +181,14 @@ services:
       OVERPASS_DIFF_URL: https://download.geofabrik.de/europe/spain-updates/
       OVERPASS_UPDATE_SLEEP: 3600
       OVERPASS_COMPRESSION: gz
+    # El healthcheck de la imagen consulta nodos aleatorios y tiene 48 h de start_period: mientras no pasa, Swarm
+    # no incluye la tarea en el DNS y `overpass` no resuelve para la API/worker (ENOTFOUND). Basta con que responda.
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -sf http://localhost/api/status > /dev/null || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5m
     volumes:
       - overpass_data:/db
     deploy:
