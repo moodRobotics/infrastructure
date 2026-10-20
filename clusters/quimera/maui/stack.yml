@@ -41,7 +41,9 @@ services:
       OSM_LOCAL_ENABLED: 'true'
       OSM_LOCAL_NOMINATIM_URL: http://nominatim:8080
       OSM_LOCAL_OVERPASS_URL: http://overpass/api/interpreter
-      OSM_LOCAL_TILES_URL: ''
+      # Ruta same-origin: nginx del frontend proxifica /tiles/ -> tileserver (sin CORS ni mixed content).
+      OSM_LOCAL_TILES_URL: /tiles
+      OSM_LOCAL_TILES_STYLE: dark
       CROSSLINK_RADIUS_METERS: 350
     deploy:
       replicas: 1
@@ -184,7 +186,70 @@ services:
       update_config:
         order: stop-first
 
+  # Generador de teselas vectoriales de España (planetiler -> OpenMapTiles .mbtiles).
+  # Servicio de un solo uso: si spain.mbtiles ya existe termina al instante.
+  # Primer arranque: descarga spain-latest.osm.pbf y genera (~30-90 min). Para regenerar:
+  # borra /data/mbtiles/spain.mbtiles del volumen tiles_data y redespliega.
+  tilegen:
+    image: ghcr.io/onthegomap/planetiler:latest
+    entrypoint: ['sh', '-c']
+    command:
+      - |
+        mkdir -p /data/mbtiles /data/sources /data/tmp
+        if [ -f /data/mbtiles/spain.mbtiles ]; then
+          echo "spain.mbtiles ya existe, nada que hacer"
+        else
+          java -Xmx5g -jar /planetiler.jar --area=spain --download             --download_dir=/data/sources --tmpdir=/data/tmp             --output=/data/mbtiles/spain.tmp.mbtiles --force           && mv /data/mbtiles/spain.tmp.mbtiles /data/mbtiles/spain.mbtiles           && rm -rf /data/tmp
+        fi
+    volumes:
+      - tiles_data:/data
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == mood001
+      resources:
+        limits:
+          memory: 8G
+      restart_policy:
+        condition: on-failure
+        delay: 60s
+        max_attempts: 3
+
+  # Servidor de teselas: sirve spain.mbtiles con el estilo oscuro (dark-matter, sin API key).
+  # Hasta que tilegen termine, reintenta cada minuto. Accesible desde el navegador en /tiles/
+  # (proxy del frontend). Estilo: /tiles/styles/dark/style.json
+  tileserver:
+    image: maptiler/tileserver-gl:v4.4.10
+    entrypoint: ['sh', '-c']
+    command:
+      - |
+        cd /data
+        mkdir -p styles
+        until [ -f mbtiles/spain.mbtiles ]; do echo "esperando spain.mbtiles..."; sleep 30; done
+        if [ ! -s styles/dark.json ]; then
+          wget -qO- https://raw.githubusercontent.com/openmaptiles/dark-matter-gl-style/master/style.json             | sed 's#"url": *"[^"]*"#"url": "mbtiles://{spain}"#' > styles/dark.json
+        fi
+        cat > config.json <<'EOF'
+        {"options":{"paths":{"root":"/data","fonts":"fonts","sprites":"sprites","styles":"styles","mbtiles":"mbtiles"}},
+         "styles":{"dark":{"style":"dark.json"}},
+         "data":{"spain":{"mbtiles":"spain.mbtiles"}}}
+        EOF
+        exec node /usr/src/app/ -p 8080 -c /data/config.json
+    volumes:
+      - tiles_data:/data
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == mood001
+      restart_policy:
+        condition: any
+        delay: 30s
+
 volumes:
+  tiles_data:
+    driver: local
   postgis_data:
     driver: local
   redis_data:
