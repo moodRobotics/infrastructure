@@ -245,11 +245,24 @@ services:
     command:
       - |
         cd /data
-        mkdir -p styles
+        # fonts/ y sprites/ deben existir (aunque vacíos): el estilo usa glyphs y sprites remotos de openmaptiles
+        mkdir -p styles fonts sprites
         until [ -f mbtiles/spain.mbtiles ]; do echo "esperando spain.mbtiles..."; sleep 30; done
-        if [ ! -s styles/dark.json ]; then
-          wget -qO- https://raw.githubusercontent.com/openmaptiles/dark-matter-gl-style/master/style.json             | sed 's#"url": *"[^"]*"#"url": "mbtiles://{spain}"#' > styles/dark.json
-        fi
+        # La imagen no trae wget/curl: el estilo se descarga con el fetch de node y se apunta al mbtiles local
+        until [ -s styles/dark.json ]; do
+          rm -f styles/dark.json
+          node -e "
+            fetch('https://raw.githubusercontent.com/openmaptiles/dark-matter-gl-style/master/style.json')
+              .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+              .then(style => {
+                for (const src of Object.values(style.sources)) {
+                  if (src.type === 'vector') { delete src.tiles; src.url = 'mbtiles://{spain}'; }
+                }
+                require('fs').writeFileSync('styles/dark.json', JSON.stringify(style));
+              })
+              .catch(e => { console.error('No se pudo descargar el estilo: ' + e.message); process.exit(1); })
+          " || { echo "reintentando en 30s..."; sleep 30; }
+        done
         cat > config.json <<'EOF'
         {"options":{"paths":{"root":"/data","fonts":"fonts","sprites":"sprites","styles":"styles","mbtiles":"mbtiles"}},
          "styles":{"dark":{"style":"dark.json"}},
