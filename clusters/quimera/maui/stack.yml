@@ -181,10 +181,12 @@ services:
       OVERPASS_DIFF_URL: https://download.geofabrik.de/europe/spain-updates/
       OVERPASS_UPDATE_SLEEP: 3600
       OVERPASS_COMPRESSION: gz
-    # El healthcheck de la imagen consulta nodos aleatorios y tiene 48 h de start_period: mientras no pasa, Swarm
-    # no incluye la tarea en el DNS y `overpass` no resuelve para la API/worker (ENOTFOUND). Basta con que responda.
+    # El healthcheck de la imagen tiene 48 h de start_period: mientras no pasa, Swarm no incluye la tarea en el DNS y
+    # `overpass` no resuelve para la API/worker (ENOTFOUND). Basta con que /api/interpreter responda 200.
+    # (No usar /api/status: en esta imagen su CGI se cae con std::out_of_range y da 502.) Nodo aleatorio para que
+    # no lo rechace el filtro de consultas duplicadas; `$$` evita la interpolación de variables del stack.
     healthcheck:
-      test: ['CMD-SHELL', 'curl -sf http://localhost/api/status > /dev/null || exit 1']
+      test: ['CMD-SHELL', 'curl -sf "http://localhost/api/interpreter?data=%5Bout:json%5D;node($$(shuf -i 1-10000000 -n 1));out;" > /dev/null || exit 1']
       interval: 30s
       timeout: 10s
       retries: 3
