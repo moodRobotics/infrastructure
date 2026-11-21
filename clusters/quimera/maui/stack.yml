@@ -41,7 +41,9 @@ services:
       OSM_LOCAL_ENABLED: 'true'
       OSM_LOCAL_NOMINATIM_URL: http://nominatim:8080
       OSM_LOCAL_OVERPASS_URL: http://overpass/api/interpreter
-      OSM_LOCAL_TILES_URL: ''
+      # Ruta same-origin: nginx del frontend proxifica /tiles/ -> tileserver (sin CORS ni mixed content).
+      OSM_LOCAL_TILES_URL: /tiles
+      OSM_LOCAL_TILES_STYLE: dark
       CROSSLINK_RADIUS_METERS: 350
     deploy:
       replicas: 1
@@ -126,6 +128,12 @@ services:
   # Listo cuando `curl http://nominatim:8080/status` devuelve OK.
   nominatim:
     image: mediagis/nominatim:4.4
+    # Publicado para otros desarrollos (GOD-EYE, TM2...): http://<nodo>:8092/search?q=...&format=jsonv2
+    ports:
+      - target: 8080
+        published: 8092
+        protocol: tcp
+        mode: ingress
     environment:
       PBF_URL: https://download.geofabrik.de/europe/spain-latest.osm.pbf
       REPLICATION_URL: https://download.geofabrik.de/europe/spain-updates/
@@ -158,6 +166,12 @@ services:
   # Primer arranque (en mood001): descarga el PBF de España, lo convierte e indexa (1-3 horas).
   overpass:
     image: wiktorn/overpass-api:latest
+    # Publicado para otros desarrollos: POST http://<nodo>:8093/api/interpreter (data=<consulta OverpassQL>)
+    ports:
+      - target: 80
+        published: 8093
+        protocol: tcp
+        mode: ingress
     environment:
       OVERPASS_MODE: init
       OVERPASS_META: 'no'
@@ -167,6 +181,16 @@ services:
       OVERPASS_DIFF_URL: https://download.geofabrik.de/europe/spain-updates/
       OVERPASS_UPDATE_SLEEP: 3600
       OVERPASS_COMPRESSION: gz
+    # El healthcheck de la imagen tiene 48 h de start_period: mientras no pasa, Swarm no incluye la tarea en el DNS y
+    # `overpass` no resuelve para la API/worker (ENOTFOUND). Basta con que /api/interpreter responda 200.
+    # (No usar /api/status: en esta imagen su CGI se cae con std::out_of_range y da 502.) Nodo aleatorio para que
+    # no lo rechace el filtro de consultas duplicadas; `$$` evita la interpolación de variables del stack.
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -sf "http://localhost/api/interpreter?data=%5Bout:json%5D;node($$(shuf -i 1-10000000 -n 1));out;" > /dev/null || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5m
     volumes:
       - overpass_data:/db
     deploy:
@@ -184,7 +208,110 @@ services:
       update_config:
         order: stop-first
 
+  # Generador de teselas vectoriales de España (planetiler -> OpenMapTiles .mbtiles).
+  # Servicio de un solo uso: si spain.mbtiles ya existe termina al instante.
+  # Primer arranque: descarga spain-latest.osm.pbf y genera (~30-90 min). Para regenerar:
+  # borra /data/mbtiles/spain.mbtiles del volumen tiles_data y redespliega.
+  tilegen:
+    image: ghcr.io/onthegomap/planetiler:latest
+    entrypoint: ['sh', '-c']
+    command:
+      - |
+        mkdir -p /data/mbtiles /data/sources /data/tmp
+        if [ -f /data/mbtiles/spain.mbtiles ]; then
+          echo "spain.mbtiles ya existe, nada que hacer"
+        else
+          java -Xmx5g -cp @/app/jib-classpath-file com.onthegomap.planetiler.Main --area=spain --download             --download_dir=/data/sources --tmpdir=/data/tmp             --output=/data/mbtiles/spain.tmp.mbtiles --force           && mv /data/mbtiles/spain.tmp.mbtiles /data/mbtiles/spain.mbtiles           && rm -rf /data/tmp
+        fi
+    volumes:
+      - tiles_data:/data
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == mood001
+      resources:
+        limits:
+          memory: 8G
+      restart_policy:
+        condition: on-failure
+        delay: 60s
+        max_attempts: 3
+
+  # Servidor de teselas: sirve spain.mbtiles con el estilo oscuro (dark-matter, sin API key).
+  # Hasta que tilegen termine, reintenta cada minuto. Accesible desde el navegador en /tiles/
+  # (proxy del frontend). Estilo: /tiles/styles/dark/style.json
+  tileserver:
+    image: maptiler/tileserver-gl:v4.4.10
+    # La imagen corre como `node`, pero el volumen lo crea root (tilegen): sin esto no puede crear styles/
+    user: root
+    # Publicado en el swarm para otros desarrollos: http://<cualquier-nodo>:8091/ (estilo: /styles/dark/style.json)
+    ports:
+      - target: 8080
+        published: 8091
+        protocol: tcp
+        mode: ingress
+    entrypoint: ['sh', '-c']
+    command:
+      - |
+        cd /data
+        # fonts/ y sprites/ deben existir (aunque vacíos)
+        mkdir -p styles fonts sprites
+        until [ -f mbtiles/spain.mbtiles ]; do echo "esperando spain.mbtiles..."; sleep 30; done
+        # Fuentes (glyphs) del estilo: Metropolis y Noto Sans en PBF, del release de openmaptiles/fonts (una sola vez).
+        # La imagen no trae wget/curl/unzip: se usa el python3 de la imagen.
+        until [ -d "fonts/Noto Sans Regular" ] && [ -d "fonts/Metropolis Regular" ]; do
+          cat > /tmp/fonts.py <<'PY'
+        import io, urllib.request, zipfile
+        data = urllib.request.urlopen('https://github.com/openmaptiles/fonts/releases/download/v2.0/v2.0.zip', timeout=300).read()
+        z = zipfile.ZipFile(io.BytesIO(data))
+        n = 0
+        for name in z.namelist():
+            top = name.split('/')[0]
+            if top.startswith('Metropolis ') or top.startswith('Noto Sans '):
+                z.extract(name, '/data/fonts')
+                n += 1
+        print('fuentes extraidas:', n)
+        PY
+          python3 /tmp/fonts.py || { echo "reintentando fuentes en 30s..."; sleep 30; }
+        done
+        # Estilo Dark Matter: se descarga con el fetch de node, se apunta al mbtiles local y a las fuentes locales.
+        # (el estilo original usa api.maptiler.com con {key}: se regenera si el guardado aún lo contiene)
+        until [ -s styles/dark.json ] && ! grep -q maptiler styles/dark.json; do
+          rm -f styles/dark.json
+          node -e "
+            fetch('https://raw.githubusercontent.com/openmaptiles/dark-matter-gl-style/master/style.json')
+              .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+              .then(style => {
+                for (const src of Object.values(style.sources)) {
+                  if (src.type === 'vector') { delete src.tiles; src.url = 'mbtiles://{spain}'; }
+                }
+                style.glyphs = '{fontstack}/{range}.pbf';
+                require('fs').writeFileSync('styles/dark.json', JSON.stringify(style));
+              })
+              .catch(e => { console.error('No se pudo descargar el estilo: ' + e.message); process.exit(1); })
+          " || { echo "reintentando en 30s..."; sleep 30; }
+        done
+        cat > config.json <<'EOF'
+        {"options":{"paths":{"root":"/data","fonts":"fonts","sprites":"sprites","styles":"styles","mbtiles":"mbtiles"}},
+         "styles":{"dark":{"style":"dark.json"}},
+         "data":{"spain":{"mbtiles":"spain.mbtiles"}}}
+        EOF
+        exec node /usr/src/app/ -p 8080 -c /data/config.json
+    volumes:
+      - tiles_data:/data
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == mood001
+      restart_policy:
+        condition: any
+        delay: 30s
+
 volumes:
+  tiles_data:
+    driver: local
   postgis_data:
     driver: local
   redis_data:
