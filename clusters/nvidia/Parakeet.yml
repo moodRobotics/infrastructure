@@ -1,0 +1,26 @@
+services:
+  parakeet-stt:
+    image: ghcr.io/speaches-ai/speaches:latest-cuda
+    container_name: parakeet-tdt-06b-v3
+    restart: unless-stopped
+    ports:
+      - "7003:8000"
+    environment:
+      # Modelo Parakeet TDT 0.6B v3 (25 idiomas europeos, incluido español)
+      - STT_MODEL_ID=nvidia/parakeet-tdt-0.6b-v3
+      # Ejecución en GPU NVIDIA (~1,8 GB de VRAM)
+      - INFERENCE_DEVICE=cuda
+      # Mantener cargado en VRAM (-1 = permanente, o segundos de inactividad para liberar)
+      - MODEL_TTL=-1
+    volumes:
+      - parakeet_hf_cache:/home/ubuntu/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  parakeet_hf_cache:
