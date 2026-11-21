@@ -1,6 +1,6 @@
 services:
   yolo11m:
-    image: ultralytics/ultralytics:latest-gpu
+    image: ultralytics/ultralytics:latest
     container_name: yolo11m-vision
     restart: unless-stopped
     ports:
