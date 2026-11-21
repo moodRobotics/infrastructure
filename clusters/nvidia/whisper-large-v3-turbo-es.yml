@@ -1,0 +1,29 @@
+services:
+  whisper-turbo:
+    image: ghcr.io/speaches-ai/speaches:latest-cuda
+    container_name: whisper-large-v3-turbo
+    restart: unless-stopped
+    ports:
+      - "7001:8000"
+    environment:
+      # Modelo Whisper Large-v3-Turbo en formato CTranslate2
+      - WHISPER__MODEL=deepdml/faster-whisper-large-v3-turbo-ct2
+      # Aceleración en GPU NVIDIA y cuantización int8 (~1.5 GB VRAM)
+      - WHISPER__INFERENCE_DEVICE=cuda
+      - WHISPER__COMPUTE_TYPE=int8
+      # Tiempo en segundos antes de descargar el modelo de VRAM (-1 = siempre cargado)
+      - WHISPER__TTL=-1
+      # Idioma por defecto (opcional, mejora velocidad si casi todo es español)
+      - WHISPER__LANGUAGE=es
+    volumes:
+      - whisper_hf_cache:/home/ubuntu/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  whisper_hf_cache:

@@ -1,0 +1,56 @@
+services:
+  yolo11m:
+    image: ultralytics/ultralytics:latest-gpu
+    container_name: yolo11m-vision
+    restart: unless-stopped
+    ports:
+      - "7002:8001"
+    working_dir: /app
+    command:
+      - /bin/sh
+      - -c
+      - |
+        pip install --no-cache-dir fastapi uvicorn python-multipart &&
+        cat <<'EOF' > /app/server.py
+        import io
+        from fastapi import FastAPI, File, UploadFile
+        from PIL import Image
+        from ultralytics import YOLO
+
+        app = FastAPI(title="YOLO11m API")
+        model = YOLO("yolo11m.pt")
+        model.to("cuda")
+
+        @app.get("/health")
+        def health():
+            return {"status": "ok", "model": "yolo11m"}
+
+        @app.post("/predict")
+        async def predict(file: UploadFile = File(...), conf: float = 0.25):
+            data = await file.read()
+            img = Image.open(io.BytesIO(data)).convert("RGB")
+            results = model.predict(img, device=0, conf=conf, verbose=False)
+            detections = []
+            for r in results:
+                for box in r.boxes:
+                    detections.append({
+                        "class_id": int(box.cls[0]),
+                        "label": r.names[int(box.cls[0])],
+                        "confidence": round(float(box.conf[0]), 4),
+                        "bbox": [round(float(x), 2) for x in box.xyxy[0].tolist()]
+                    })
+            return {"count": len(detections), "detections": detections}
+        EOF
+        exec uvicorn server:app --host 0.0.0.0 --port 8001
+    volumes:
+      - yolo_weights:/app
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  yolo_weights:

@@ -1,0 +1,30 @@
+services:
+  glm-vision:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
+    container_name: glm-46v-flash
+    restart: unless-stopped
+    ports:
+      - "7003:7003"
+    environment:
+      - LLAMA_ARG_HOST=0.0.0.0
+      - LLAMA_ARG_PORT=7003
+      # Descarga/carga automática del modelo GGUF cuantizado en Q4 desde Hugging Face
+      - LLAMA_ARG_HF_REPO=bartowski/GLM-4.6V-Flash-GGUF
+      - LLAMA_ARG_HF_FILE=GLM-4.6V-Flash-Q4_K_M.gguf
+      # Descarga todas las capas posibles a la RTX 3060 Ti
+      - LLAMA_ARG_N_GPU_LAYERS=999
+      # Contexto moderado para proteger los 8 GB de VRAM al procesar imágenes
+      - LLAMA_ARG_CTX_SIZE=4096
+      - LLAMA_ARG_FLASH_ATTN=on
+    volumes:
+      - glm_models_cache:/root/.cache/llama.cpp
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  glm_models_cache:
